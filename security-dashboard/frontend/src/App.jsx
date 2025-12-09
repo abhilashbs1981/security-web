@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import ScanControl from './components/ScanControl';
 import LogViewer from './components/LogViewer';
 import ReportViewer from './components/ReportViewer';
-import { ShieldAlert, LayoutDashboard, FileText } from 'lucide-react';
+import WebTerminal from './components/WebTerminal';
+import { ShieldAlert, LayoutDashboard, FileText, Terminal } from 'lucide-react';
 
 function App() {
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -146,7 +147,7 @@ function App() {
                         <h1 className="text-2xl font-bold tracking-tight">SecurityOps Dashboard</h1>
                     </div>
                     <nav className="flex gap-4 items-center">
-                        <div className="flex items-center gap-2 px-4 py-2 bg-gray-900 rounded-full border border-gray-700 mr-4">
+                        <div className="flex items-center gap-2 px-4 py-2 bg-gray-900 rounded-md border border-gray-700 mr-4">
                             <span className="relative flex h-2 w-2">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                                 <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
@@ -155,7 +156,7 @@ function App() {
                         </div>
                         <button
                             onClick={() => setActiveTab('dashboard')}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'text-gray-400 hover:text-white'
+                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
                                 }`}
                         >
                             <LayoutDashboard className="w-4 h-4" />
@@ -163,11 +164,19 @@ function App() {
                         </button>
                         <button
                             onClick={() => setActiveTab('reports')}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${activeTab === 'reports' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'text-gray-400 hover:text-white'
+                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'reports' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
                                 }`}
                         >
                             <FileText className="w-4 h-4" />
                             Reports
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('terminal')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'terminal' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                                }`}
+                        >
+                            <Terminal className="w-4 h-4" />
+                            Terminal
                         </button>
                     </nav>
                 </div>
@@ -189,8 +198,12 @@ function App() {
                             <LogViewer logs={logs} />
                         </div>
                     </div>
-                ) : (
+                ) : activeTab === 'reports' ? (
                     <ReportViewer />
+                ) : (
+                    <div className="h-full">
+                        <WebTerminal />
+                    </div>
                 )}
             </main>
         </div>

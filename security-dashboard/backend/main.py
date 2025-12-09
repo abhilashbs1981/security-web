@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import scans, reports
+from services import terminal
 
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -18,6 +19,7 @@ app.add_middleware(
 
 app.include_router(scans.router, prefix="/api/scans", tags=["scans"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
+app.include_router(terminal.router, prefix="/api/terminal", tags=["terminal"])
 
 # Mount static files (React build)
 # Check if static directory exists (it will in Docker, might not locally)
