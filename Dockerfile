@@ -2,7 +2,7 @@
 # Build context: Project Root (/home/abhilash/abhi/security)
 
 # --- Stage 1: Build Frontend ---
-FROM node:18-alpine as frontend-build
+FROM node:24-alpine as frontend-build
 WORKDIR /app/frontend
 
 # Copy frontend dependency definitions
@@ -68,14 +68,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY scripts/ /app/scripts/
 COPY *_run_*.sh /app/
 # Explicitly copy other requested files
-COPY install-dependencies.sh /app/
+
 COPY start-app.sh /app/
 COPY logo-mobile.webp /app/
 COPY security-policy-report.html /app/
 COPY new/ /app/new/
 
 # Make scripts executable
-RUN chmod +x /app/*_run_*.sh /app/scripts/*.sh /app/install-dependencies.sh /app/start-app.sh
+RUN chmod +x /app/*_run_*.sh /app/scripts/*.sh /app/start-app.sh
 
 # Copy Backend Code
 # Copy Backend Code to match host structure

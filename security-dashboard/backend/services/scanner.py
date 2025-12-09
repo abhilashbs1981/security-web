@@ -152,5 +152,4 @@ async def run_scan_task(scan_id: str, request: ScanRequest):
     with open(report_file, "w") as f:
         json.dump(final_report, f, indent=2)
     
-    await manager.broadcast(f"Report saved to {report_file}", scan_id)
     await manager.broadcast("__EOF__", scan_id)
