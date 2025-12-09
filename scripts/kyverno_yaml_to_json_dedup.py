@@ -83,10 +83,36 @@ try:
                 policy_reports[res_key]['summary'][status] += 1
 
     # Convert to List
+    # Convert to List
+    report_items = list(policy_reports.values())
     output = {
         "apiVersion": "v1",
-        "items": list(policy_reports.values())
+        "items": report_items
     }
+
+    # Calculate and print summary statistics to stderr
+    total_resources = len(report_items)
+    total_pass = sum(item['summary'].get('pass', 0) for item in report_items)
+    total_fail = sum(item['summary'].get('fail', 0) for item in report_items)
+    total_warn = sum(item['summary'].get('warn', 0) for item in report_items)
+    total_error = sum(item['summary'].get('error', 0) for item in report_items)
+    total_skip = sum(item['summary'].get('skip', 0) for item in report_items)
+    
+    # Simple separator line
+    sep = "-" * 60
+    
+    print(sep, file=sys.stderr)
+    print("                Kyverno Scan Summary", file=sys.stderr)
+    print(sep, file=sys.stderr)
+    print(f"  Total Resources Scanned: {total_resources}", file=sys.stderr)
+    print(sep, file=sys.stderr)
+    print(f"  PASS:  {total_pass}", file=sys.stderr)
+    print(f"  FAIL:  {total_fail}", file=sys.stderr)
+    print(f"  WARN:  {total_warn}", file=sys.stderr)
+    print(f"  ERROR: {total_error}", file=sys.stderr)
+    print(f"  SKIP:  {total_skip}", file=sys.stderr)
+    print(sep, file=sys.stderr)
+    print("", file=sys.stderr)
 
     print(json.dumps(output, indent=2))
 

@@ -1287,7 +1287,7 @@
     };
 
     const sevOrder = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"]; // display order
-    const sevClass = s => ({ CRITICAL: "crit", HIGH: "high", MEDIUM: "med", LOW: "low", UNKNOWN: "unk" }[s] || "unk");
+    const sevClass = s => ({ CRITICAL: "crit", HIGH: "high", MEDIUM: "med", LOW: "low", UNKNOWN: "unk" }[(s || "UNKNOWN").toUpperCase()] || "unk");
     const sevRank = { CRITICAL: 5, HIGH: 4, MEDIUM: 3, LOW: 2, UNKNOWN: 1 };
 
     function $(id) { return document.getElementById(id); }

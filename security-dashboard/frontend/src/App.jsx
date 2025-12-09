@@ -168,7 +168,7 @@ function App() {
                                 }`}
                         >
                             <FileText className="w-4 h-4" />
-                            Reports
+                            Event Logs
                         </button>
                         <button
                             onClick={() => setActiveTab('terminal')}

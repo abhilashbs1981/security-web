@@ -13,15 +13,33 @@ cd "$OUTPUT_DIR/kyverno-report"
 
 echo "Generating all-resources.yaml..."
 kubectl get pods -A -o json | python3 "$SCRIPT_DIR/kyverno_k8s_resources_to_yaml.py" > all-resources.yaml
+POD_COUNT=$(kubectl get pods -A --no-headers 2>/dev/null | wc -l)
+echo "Found $POD_COUNT pods to scan."
 
-echo "Running Kyverno scan..."
+# Extract and list policy names
+python3 -c "
+import os, yaml
+d = '$KYVERNO_POLICY_DIR'
+files = sorted([f for f in os.listdir(d) if f.endswith('.yaml')])
+print(f'Applying {len(files)} policies:')
+for f in files:
+    try:
+        with open(os.path.join(d, f)) as yh:
+            for doc in yaml.safe_load_all(yh):
+                if doc and 'metadata' in doc and 'name' in doc['metadata']:
+                    print(f'  - {doc[\"metadata\"][\"name\"]}')
+    except:
+        print(f'  - {f} (error reading name)')
+"
+
+echo "Running Kyverno scan (this may take a moment)..."
 # Run kyverno apply
-# Note: Redirecting stderr to stdout to capture potential warnings, but primarily we want the output file
-kyverno apply "$KYVERNO_POLICY_DIR" --resource ./all-resources.yaml --policy-report > policy-report.yaml || true
+# Note: We capture stdout to the file, but let stderr go to console for progress/warnings
+kyverno apply "$KYVERNO_POLICY_DIR" --resource ./all-resources.yaml --policy-report > policy-report.yaml 2>&1 || true
 
-# Remove first 5 lines (as per user instruction, likely to remove header/logs)
-tail -n +6 policy-report.yaml > policy-report.clean.yaml
-mv policy-report.clean.yaml policy-report.yaml
+# Legacy workaround removed: Kyverno 1.16+ outputs clean YAML, no need to strip headers.
+# tail -n +6 policy-report.yaml > policy-report.clean.yaml
+# mv policy-report.clean.yaml policy-report.yaml
 
 echo "Validating YAML..."
 python3 -c "import yaml; yaml.safe_load(open('policy-report.yaml'))" && echo "Valid YAML"

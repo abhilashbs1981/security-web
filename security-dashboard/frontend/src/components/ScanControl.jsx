@@ -24,9 +24,9 @@ export default function ScanControl({ onStartScan, isScanning }) {
                         key={type.id}
                         onClick={() => onStartScan(type.id)}
                         disabled={isScanning}
-                        className={`flex items-center gap-2 py-2 px-3 rounded-lg border transition-all ${isScanning
+                        className={`flex items-center gap-2 py-2 px-3 rounded-lg border transition-all w-3/4 ${isScanning
                             ? 'opacity-50 cursor-not-allowed bg-gray-700 border-gray-600'
-                            : 'bg-gray-700/50 border-gray-600 hover:bg-blue-600/20 hover:border-blue-500'
+                            : 'bg-gray-700/50 border-gray-600 hover:bg-blue-600/40 hover:border-blue-400 hover:shadow-lg hover:shadow-blue-500/20'
                             }`}
                     >
                         <div className="p-1.5 bg-gray-700 rounded-md text-blue-400">
