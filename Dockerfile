@@ -24,7 +24,7 @@ FROM python:3.9-slim
 # - vim: Editor (requested)
 ENV TRIVY_VERSION=0.68.1
 ENV KUBE_BENCH_VERSION=0.14.0
-ENV KYVERNO_VERSION=1.10.0
+ENV KYVERNO_VERSION=1.16.0
 
 RUN apt-get update && apt-get install -y \
     nmap \
