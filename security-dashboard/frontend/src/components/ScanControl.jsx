@@ -18,21 +18,21 @@ export default function ScanControl({ onStartScan, isScanning }) {
                 Scan Controls
             </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="flex flex-col gap-4 mb-6">
                 {SCAN_TYPES.map((type) => (
                     <button
                         key={type.id}
                         onClick={() => onStartScan(type.id)}
                         disabled={isScanning}
-                        className={`flex items-center gap-3 p-4 rounded-lg border transition-all ${isScanning
+                        className={`flex items-center gap-2 py-2 px-3 rounded-lg border transition-all ${isScanning
                             ? 'opacity-50 cursor-not-allowed bg-gray-700 border-gray-600'
                             : 'bg-gray-700/50 border-gray-600 hover:bg-blue-600/20 hover:border-blue-500'
                             }`}
                     >
-                        <div className="p-2 bg-gray-700 rounded-md text-blue-400">
-                            {type.icon}
+                        <div className="p-1.5 bg-gray-700 rounded-md text-blue-400">
+                            {React.cloneElement(type.icon, { className: "w-3.5 h-3.5" })}
                         </div>
-                        <span className="font-medium">{type.label}</span>
+                        <span className="font-medium text-sm">{type.label}</span>
                     </button>
                 ))}
             </div>
@@ -40,12 +40,12 @@ export default function ScanControl({ onStartScan, isScanning }) {
             <button
                 onClick={() => onStartScan('all')}
                 disabled={isScanning}
-                className={`w-full py-4 text-lg font-bold rounded-lg flex items-center justify-center gap-2 transition-all ${isScanning
+                className={`w-full py-2 px-3 text-sm font-medium rounded-lg flex items-center justify-center gap-2 transition-all ${isScanning
                     ? 'bg-gray-600 cursor-not-allowed'
                     : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-lg shadow-blue-900/20'
                     }`}
             >
-                <Play className="w-5 h-5 fill-current" />
+                <Play className="w-3.5 h-3.5 fill-current" />
                 Run All Scans
             </button>
         </div>

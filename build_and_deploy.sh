@@ -16,6 +16,14 @@ docker build -t "$IMAGE" .
 echo "[2/4] Pushing to Registry..."
 docker push "$IMAGE"
 
+echo ""
+read -p "Do you want to proceed with restarting the deployment? (y/N) " confirm
+if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    echo "Deployment aborted by user."
+    exit 0
+fi
+
+
 echo "[3/4] Restarting Kubernetes Deployment..."
 kubectl rollout restart deployment/"$DEPLOYMENT" -n "$NAMESPACE"
 

@@ -11,7 +11,7 @@ export default function LogViewer({ logs }) {
     }, [logs]);
 
     return (
-        <div className="bg-gray-900 rounded-lg border border-gray-800 shadow-2xl flex flex-col h-[500px]">
+        <div className="bg-gray-900 rounded-lg border border-gray-800 shadow-2xl flex flex-col h-full">
             <div className="bg-gray-800 px-4 py-2 border-b border-gray-700 flex items-center gap-2">
                 <TerminalIcon className="w-4 h-4 text-gray-400" />
                 <span className="text-sm font-mono text-gray-400">Live Logs</span>

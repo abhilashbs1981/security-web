@@ -137,15 +137,22 @@ function App() {
     }, []);
 
     return (
-        <div className="min-h-screen bg-gray-900 text-white flex flex-col font-sans">
+        <div className="h-screen bg-gray-900 text-white flex flex-col font-sans overflow-hidden">
             {/* Header */}
             <header className="bg-gray-800 border-b border-gray-700 p-4 shadow-md">
-                <div className="container mx-auto flex items-center justify-between">
+                <div className="flex items-center justify-between px-0">
                     <div className="flex items-center gap-3">
                         <ShieldAlert className="w-8 h-8 text-blue-500" />
                         <h1 className="text-2xl font-bold tracking-tight">SecurityOps Dashboard</h1>
                     </div>
-                    <nav className="flex gap-4">
+                    <nav className="flex gap-4 items-center">
+                        <div className="flex items-center gap-2 px-4 py-2 bg-gray-900 rounded-full border border-gray-700 mr-4">
+                            <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                            </span>
+                            <span className="text-green-400 text-sm font-medium">System Online</span>
+                        </div>
                         <button
                             onClick={() => setActiveTab('dashboard')}
                             className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'text-gray-400 hover:text-white'
@@ -167,26 +174,18 @@ function App() {
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 container mx-auto p-6">
+            <main className="flex-1 flex flex-col p-6 overflow-hidden">
                 {activeTab === 'dashboard' ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        <div className="lg:col-span-1">
+                    <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
+                        {/* Left Sidebar: Scan Controls & Status */}
+                        <div className="w-full lg:w-80 flex-shrink-0 flex flex-col gap-6">
                             <ScanControl onStartScan={startScan} isScanning={isScanning} />
 
-                            <div className="mt-8 p-6 bg-gray-800/50 rounded-lg border border-gray-700">
-                                <h3 className="text-lg font-semibold mb-2 text-gray-300">System Status</h3>
-                                <div className="flex items-center gap-2 text-green-400">
-                                    <span className="relative flex h-3 w-3">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                                    </span>
-                                    Operational
-                                </div>
-                                <p className="text-sm text-gray-500 mt-2">Backend connected</p>
-                            </div>
+
                         </div>
 
-                        <div className="lg:col-span-2">
+                        {/* Right Side: Terminal */}
+                        <div className="flex-1 h-full min-w-0">
                             <LogViewer logs={logs} />
                         </div>
                     </div>
