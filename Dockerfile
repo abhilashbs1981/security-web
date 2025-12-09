@@ -57,7 +57,6 @@ RUN wget -q https://github.com/kyverno/kyverno/releases/download/v${KYVERNO_VERS
 RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
     && install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
-
 WORKDIR /app
 
 # Copy Backend Requirements
@@ -77,7 +76,6 @@ COPY new/ /app/new/
 # Make scripts executable
 RUN chmod +x /app/*_run_*.sh /app/scripts/*.sh /app/start-app.sh
 
-# Copy Backend Code
 # Copy Backend Code to match host structure
 COPY security-dashboard/backend/ /app/security-dashboard/backend/
 
@@ -90,7 +88,6 @@ COPY --from=frontend-build /app/frontend/dist /app/static
 # Set Environment Variables
 ENV PYTHONPATH=/app/security-dashboard/backend
 ENV APP_HOME=/app
-
 
 # Expose Port
 EXPOSE 8000 8081
