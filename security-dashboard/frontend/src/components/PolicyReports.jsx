@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import JSZip from 'jszip';
-import { Shield, FileJson, AlertTriangle, CheckCircle, XCircle, Info, Hash, Clock, Download, ChevronRight, ChevronDown, Package, Layers, Image as ImageIcon, Globe } from 'lucide-react';
+import { Shield, FileJson, AlertTriangle, CheckCircle, XCircle, Info, Hash, Clock, Download, ChevronRight, ChevronDown, Package, Layers, Image as ImageIcon, Globe, ClipboardList, Server } from 'lucide-react';
 
 export default function PolicyReports() {
-  const [activeView, setActiveView] = useState('kyverno'); // kyverno | sbom | image | nmap
+  const [activeView, setActiveView] = useState('kyverno'); // kyverno | sbom | image | nmap | cis | cluster
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -11,6 +11,8 @@ export default function PolicyReports() {
   const [kyvernoData, setKyvernoData] = useState({ rows: [], counts: {} });
   const [sbomData, setSbomData] = useState({ list: [], counts: {} });
   const [nmapData, setNmapData] = useState([]);
+  const [cisData, setCisData] = useState({ list: [], counts: {} });
+  const [clusterData, setClusterData] = useState({ list: [], counts: {} });
 
   // Image Report State
   const [imageFiles, setImageFiles] = useState([]);
@@ -23,6 +25,12 @@ export default function PolicyReports() {
     PASS: true, FAIL: true, WARN: true, ERROR: true, SKIP: true
   });
   const [sbomSeverityFilters, setSbomSeverityFilters] = useState({
+    CRITICAL: true, HIGH: true, MEDIUM: true, LOW: true, UNKNOWN: true
+  });
+  const [cisStatusFilters, setCisStatusFilters] = useState({
+    PASS: true, FAIL: true, WARN: true, INFO: true
+  });
+  const [clusterSeverityFilters, setClusterSeverityFilters] = useState({
     CRITICAL: true, HIGH: true, MEDIUM: true, LOW: true, UNKNOWN: true
   });
 
@@ -43,6 +51,10 @@ export default function PolicyReports() {
       loadNmap();
     } else if (activeView === 'image') {
       fetchImageFiles();
+    } else if (activeView === 'cis') {
+      loadCis();
+    } else if (activeView === 'cluster') {
+      loadCluster();
     }
   }, [activeView]);
 
@@ -55,6 +67,7 @@ export default function PolicyReports() {
 
 
   const loadKyverno = async () => {
+    if (kyvernoData.rows.length > 0) return;
     setLoading(true);
     try {
       const res = await fetch('/new/kyverno-report/kyverno.zip');
@@ -90,6 +103,7 @@ export default function PolicyReports() {
   };
 
   const loadSbom = async () => {
+    if (sbomData.list.length > 0) return;
     setLoading(true);
     try {
       const res = await fetch('/new/trivy-sbom/sbom.json');
@@ -110,6 +124,7 @@ export default function PolicyReports() {
   };
 
   const loadNmap = async () => {
+    if (nmapData.length > 0) return;
     setLoading(true);
     try {
       const res = await fetch('/new/nmap/nmap.json');
@@ -129,7 +144,59 @@ export default function PolicyReports() {
     }
   };
 
+  const loadCis = async () => {
+    if (cisData.list.length > 0) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/new/kube-bench/kubebench.txt');
+      if (res.status === 404) {
+        setCisData({ list: [], counts: {} });
+        return;
+      }
+      if (!res.ok) throw new Error(`Failed to load CIS report: ${res.status}`);
+      const text = await res.text();
+      const parsed = parseCisText(text);
+      setCisData(parsed);
+    } catch (err) {
+      console.error(err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadCluster = async () => {
+    if (clusterData.list.length > 0) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/new/trivy-cluster-report/cluster.zip');
+      if (res.status === 404) {
+        setClusterData({ list: [], counts: {} });
+        return;
+      }
+      if (!res.ok) throw new Error(`Failed to load Cluster report: ${res.status}`);
+      const blob = await res.blob();
+      const zip = await JSZip.loadAsync(blob);
+      let file = zip.file(/cluster\.json$/i)[0];
+      if (!file) {
+        const jsonFiles = zip.filter((relPath) => /\.json$/i.test(relPath));
+        file = jsonFiles[0];
+      }
+      if (!file) throw new Error('No JSON file found in Cluster ZIP');
+
+      const text = await file.async('string');
+      const parsed = parseCluster(JSON.parse(text));
+      setClusterData(parsed);
+    } catch (err) {
+      console.error(err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchImageFiles = async () => {
+    if (imageFiles.length > 0) return;
     setLoading(true);
     try {
       // New backend endpoint to list files in trivy-reports
@@ -266,6 +333,156 @@ export default function PolicyReports() {
     return { list, counts };
   }
 
+  function parseCisText(text) {
+    if (!text) return { list: [], counts: {} };
+    const lines = String(text).split(/\r?\n/);
+
+    // Build section map from INFO headers (e.g., "1.2 API Server")
+    const sectionMap = {};
+    for (const line of lines) {
+      const sm = line.match(/^\[INFO\]\s+([0-9]+(?:\.[0-9]+)?)\s+(.*)$/);
+      if (sm) { sectionMap[sm[1]] = sm[2].trim(); }
+    }
+    const findSectionName = (id) => {
+      let bestPrefix = '';
+      let name = '';
+      for (const prefix in sectionMap) {
+        if (id === prefix || id.startsWith(prefix + '.')) {
+          if (prefix.length > bestPrefix.length) { bestPrefix = prefix; name = sectionMap[prefix]; }
+        }
+      }
+      if (name) return name;
+      const major = id.split('.')[0];
+      const majorMap = { '1': 'Control Plane', '2': 'Etcd', '3': 'Control Plane Config', '4': 'Worker Node', '5': 'Policies' };
+      return majorMap[major] || `Group ${major}`;
+    };
+
+    // Build remediation map from "== Remediations ... ==" blocks
+    const remMap = {};
+    let inRem = false; let currentId = null;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (/^==\s*Remediations/.test(line)) { inRem = true; currentId = null; continue; }
+      if (inRem && (/^==\s*Summary/.test(line) || /^\[INFO\]/.test(line) || /^\[(FAIL|WARN|PASS|INFO)\]/.test(line))) { inRem = false; currentId = null; continue; }
+      if (!inRem) continue;
+
+      const idm = line.match(/^([0-9]+(?:\.[0-9]+)+)\b(.*)$/);
+      if (idm) {
+        currentId = idm[1];
+        const first = idm[2].trim();
+        remMap[currentId] = first ? first : '';
+        continue;
+      }
+      if (currentId) {
+        if (/^==/.test(line)) { inRem = false; currentId = null; continue; }
+        const t = line.trim();
+        remMap[currentId] += (remMap[currentId] ? '\n' : '') + t;
+      }
+    }
+
+    // Parse checks and attach section + remediation
+    const list = [];
+    const counts = { PASS: 0, FAIL: 0, WARN: 0, INFO: 0 };
+
+    for (const line of lines) {
+      const m = line.match(/^\[(FAIL|WARN|PASS|INFO)\]\s+([0-9]+(?:\.[0-9]+)+)\s+(.*)$/);
+      if (m) {
+        const status = m[1];
+        const id = m[2];
+        let title = m[3].trim();
+        const typeMatch = title.match(/\((Manual|Automated)\)\s*$/);
+        if (typeMatch) { title = title.replace(/\s*\((Manual|Automated)\)\s*$/, ''); }
+        const section = findSectionName(id);
+        const remediation = remMap[id] || '';
+
+        list.push({ status, id, desc: title, section, remediation });
+        counts[status] = (counts[status] || 0) + 1;
+      }
+    }
+
+    return { list, counts };
+  }
+
+  function parseCluster(json) {
+    if (!json) return { list: [], counts: {} };
+    let results = [];
+    // Support top-level Results/results
+    if (Array.isArray(json.Results)) {
+      results = json.Results;
+    } else if (Array.isArray(json.results)) {
+      results = json.results;
+    }
+    // Support Trivy Cluster schema: Findings (with Namespace/Kind/Name)
+    if (Array.isArray(json.Findings)) {
+      json.Findings.forEach(f => {
+        const rlist = f.Results || f.results || [];
+        rlist.forEach(r => {
+          results.push({ ...r, _ctx: { Namespace: f.Namespace, Kind: f.Kind, Name: f.Name } });
+        });
+      });
+    } else if (Array.isArray(json.findings)) {
+      json.findings.forEach(f => {
+        const rlist = f.Results || f.results || [];
+        rlist.forEach(r => {
+          results.push({ ...r, _ctx: { Namespace: f.Namespace, Kind: f.Kind, Name: f.Name } });
+        });
+      });
+    }
+    // Support alternative Trivy Cluster schema: Resources (Kind/Name)
+    if (Array.isArray(json.Resources)) {
+      json.Resources.forEach(res => {
+        const rlist = res.Results || res.results || [];
+        rlist.forEach(r => {
+          results.push({ ...r, _ctx: { Namespace: res.Namespace, Kind: res.Kind, Name: res.Name } });
+        });
+      });
+    } else if (Array.isArray(json.resources)) {
+      json.resources.forEach(res => {
+        const rlist = res.Results || res.results || [];
+        rlist.forEach(r => {
+          results.push({ ...r, _ctx: { Namespace: res.Namespace, Kind: res.Kind, Name: res.Name } });
+        });
+      });
+    }
+
+    const list = [];
+    results.forEach(r => {
+      const mis = r.Misconfigurations || r.misconfigurations || [];
+      const ctx = r._ctx || {};
+      mis.forEach(m => {
+        const composedTarget = r.Target || r.target || [ctx.Namespace, (ctx.Kind && ctx.Name) ? `${ctx.Kind}/${ctx.Name}` : (ctx.Kind || ctx.Name)].filter(Boolean).join(' ');
+        list.push({
+          severity: (m.Severity || m.severity || "UNKNOWN").toUpperCase(),
+          id: m.ID || m.id || "",
+          title: m.Title || m.title || "",
+          msg: m.Message || m.message || m.Description || m.description || "",
+          status: (m.Status || m.status || 'FAIL').toUpperCase(),
+          target: composedTarget || "Kubernetes",
+          type: 'Misconfig',
+          link: m.PrimaryURL || m.primaryURL || (m.References && m.References[0]) || ""
+        });
+      });
+      // Handle Vulnerabilities (if any in cluster scan)
+      const vuls = r.Vulnerabilities || r.vulnerabilities || [];
+      vuls.forEach(v => {
+        list.push({
+          severity: (v.Severity || v.severity || 'UNKNOWN').toUpperCase(),
+          id: v.VulnerabilityID || v.vulnerabilityID || '',
+          title: v.Title || v.title || '',
+          msg: `Pkg: ${v.PkgName} ${v.InstalledVersion}`,
+          status: 'FAIL',
+          target: r.Target || r.target || '',
+          type: 'Vuln',
+          link: v.PrimaryURL || v.primaryURL || (v.References && v.References[0]) || ""
+        });
+      });
+    });
+
+    const counts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, UNKNOWN: 0 };
+    list.forEach(item => { counts[item.severity] = (counts[item.severity] || 0) + 1; });
+    return { list, counts };
+  }
+
 
   // --- Helpers ---
   const getStatusColor = (status) => {
@@ -277,7 +494,8 @@ export default function PolicyReports() {
       HIGH: 'text-orange-400 bg-orange-400/10 border-orange-400/20',
       MEDIUM: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20',
       LOW: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
-      UNKNOWN: 'text-gray-400 bg-gray-400/10 border-gray-400/20'
+      UNKNOWN: 'text-gray-400 bg-gray-400/10 border-gray-400/20',
+      INFO: 'text-gray-400 bg-gray-400/10 border-gray-400/20'
     };
     return map[status] || map.UNKNOWN;
   };
@@ -289,33 +507,56 @@ export default function PolicyReports() {
     </div>
   );
 
+  // Calculate display counts dynamically based on namespace filter
+  const kyvernoDisplayCounts = React.useMemo(() => {
+    const c = { FAIL: 0, WARN: 0, ERROR: 0, SKIP: 0, PASS: 0 };
+    kyvernoData.rows.forEach(r => {
+      if (kyvernoNs && kyvernoNs !== 'ALL' && r.namespace !== kyvernoNs) return;
+      c[r.status] = (c[r.status] || 0) + 1;
+    });
+    return c;
+  }, [kyvernoData.rows, kyvernoNs]);
+
   return (
     <div className="h-full flex flex-col bg-[#0e1116] text-[#c9d1d9] font-sans">
       {/* Header Tabs */}
       <div className="flex items-center gap-2 p-4 border-b border-[#30363d] bg-[#161b22] overflow-x-auto">
+
         <button
           onClick={() => setActiveView('kyverno')}
-          className={`px-4 py-2 rounded-md flex items-center gap-2 transition-all whitespace-nowrap ${activeView === 'kyverno' ? 'bg-[#1f6feb] text-white font-semibold shadow-md' : 'hover:bg-[#30363d] text-gray-400'}`}
+          className={`px-4 py-2 rounded-md flex items-center gap-2 transition-all whitespace-nowrap ${activeView === 'kyverno' ? 'bg-[#1f6feb] text-white font-semibold shadow-md' : 'hover:bg-[#30363d] text-gray-200'}`}
         >
           <Shield className="w-4 h-4" /> Policy Report
         </button>
         <button
           onClick={() => setActiveView('sbom')}
-          className={`px-4 py-2 rounded-md flex items-center gap-2 transition-all whitespace-nowrap ${activeView === 'sbom' ? 'bg-[#1f6feb] text-white font-semibold shadow-md' : 'hover:bg-[#30363d] text-gray-400'}`}
+          className={`px-4 py-2 rounded-md flex items-center gap-2 transition-all whitespace-nowrap ${activeView === 'sbom' ? 'bg-[#1f6feb] text-white font-semibold shadow-md' : 'hover:bg-[#30363d] text-gray-200'}`}
         >
           <Package className="w-4 h-4" /> SBOM Report
         </button>
         <button
           onClick={() => setActiveView('image')}
-          className={`px-4 py-2 rounded-md flex items-center gap-2 transition-all whitespace-nowrap ${activeView === 'image' ? 'bg-[#1f6feb] text-white font-semibold shadow-md' : 'hover:bg-[#30363d] text-gray-400'}`}
+          className={`px-4 py-2 rounded-md flex items-center gap-2 transition-all whitespace-nowrap ${activeView === 'image' ? 'bg-[#1f6feb] text-white font-semibold shadow-md' : 'hover:bg-[#30363d] text-gray-200'}`}
         >
           <ImageIcon className="w-4 h-4" /> Image Scan Report
         </button>
         <button
           onClick={() => setActiveView('nmap')}
-          className={`px-4 py-2 rounded-md flex items-center gap-2 transition-all whitespace-nowrap ${activeView === 'nmap' ? 'bg-[#1f6feb] text-white font-semibold shadow-md' : 'hover:bg-[#30363d] text-gray-400'}`}
+          className={`px-4 py-2 rounded-md flex items-center gap-2 transition-all whitespace-nowrap ${activeView === 'nmap' ? 'bg-[#1f6feb] text-white font-semibold shadow-md' : 'hover:bg-[#30363d] text-gray-200'}`}
         >
           <Globe className="w-4 h-4" /> Network (SSL) Report
+        </button>
+        <button
+          onClick={() => setActiveView('cis')}
+          className={`px-4 py-2 rounded-md flex items-center gap-2 transition-all whitespace-nowrap ${activeView === 'cis' ? 'bg-[#1f6feb] text-white font-semibold shadow-md' : 'hover:bg-[#30363d] text-gray-200'}`}
+        >
+          <ClipboardList className="w-4 h-4" /> CIS Benchmark Report
+        </button>
+        <button
+          onClick={() => setActiveView('cluster')}
+          className={`px-4 py-2 rounded-md flex items-center gap-2 transition-all whitespace-nowrap ${activeView === 'cluster' ? 'bg-[#1f6feb] text-white font-semibold shadow-md' : 'hover:bg-[#30363d] text-gray-200'}`}
+        >
+          <Server className="w-4 h-4" /> Trivy Cluster
         </button>
       </div>
 
@@ -342,12 +583,12 @@ export default function PolicyReports() {
           <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
               {['FAIL', 'WARN', 'ERROR', 'SKIP', 'PASS'].map(s => (
-                <StatusCard key={s} label={s} value={kyvernoData.counts[s] || 0} />
+                <StatusCard key={s} label={s} value={kyvernoDisplayCounts[s] || 0} />
               ))}
               <div className="p-4 rounded-lg border border-gray-700 bg-[#1e1e1e] flex flex-col items-center justify-center">
                 <span className="text-xs font-semibold opacity-70 mb-1">TOTAL</span>
                 <span className="text-2xl font-bold text-gray-200">
-                  {Object.values(kyvernoData.counts).reduce((a, b) => a + b, 0)}
+                  {Object.values(kyvernoDisplayCounts).reduce((a, b) => a + b, 0)}
                 </span>
               </div>
             </div>
@@ -360,7 +601,8 @@ export default function PolicyReports() {
                   onChange={(e) => setKyvernoNs(e.target.value)}
                   className="w-full bg-[#0e1116] border border-[#30363d] rounded px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500"
                 >
-                  <option value="">All Namespaces</option>
+                  <option value="">None</option>
+                  <option value="ALL">All Namespaces</option>
                   {Array.from(new Set(kyvernoData.rows.map(r => r.namespace).filter(Boolean))).sort().map(ns => (
                     <option key={ns} value={ns}>{ns}</option>
                   ))}
@@ -393,18 +635,23 @@ export default function PolicyReports() {
 
             <div className="border border-[#30363d] rounded-lg overflow-hidden bg-[#0d1117]">
               <table className="w-full text-sm text-left">
-                <thead className="bg-[#161b22] text-gray-400 font-medium">
+                <thead className="bg-[#161b22] text-gray-200 font-medium">
                   <tr>
-                    <th className="p-3 border-b border-[#30363d]">Status</th>
-                    <th className="p-3 border-b border-[#30363d]">Severity</th>
+                    <th className="p-3 border-b border-[#30363d] w-24">Status</th>
+                    <th className="p-3 border-b border-[#30363d] w-24">Severity</th>
                     <th className="p-3 border-b border-[#30363d]">Policy</th>
+                    <th className="p-3 border-b border-[#30363d] w-32">Type</th>
                     <th className="p-3 border-b border-[#30363d]">Resource</th>
                     <th className="p-3 border-b border-[#30363d]">Message</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#30363d]">
                   {kyvernoData.rows
-                    .filter(r => (!kyvernoNs || r.namespace === kyvernoNs) && kyvernoStatusFilters[r.status])
+                    .filter(r => {
+                      if (kyvernoNs === "") return false; // None selected
+                      if (kyvernoNs === "ALL") return kyvernoStatusFilters[r.status]; // All selected
+                      return r.namespace === kyvernoNs && kyvernoStatusFilters[r.status]; // Specific namespace
+                    })
                     .map((row, idx) => (
                       <tr key={idx} className="hover:bg-[#161b22]/50 transition-colors">
                         <td className="p-3">
@@ -417,18 +664,16 @@ export default function PolicyReports() {
                             {row.severity}
                           </span>
                         </td>
-                        <td className="p-3 font-mono text-blue-400">{row.policy}</td>
-                        <td className="p-3">
-                          <div className="flex flex-col">
-                            <span className="text-gray-300">{row.name}</span>
-                            <span className="text-xs text-gray-500">{row.type} {row.namespace && `(${row.namespace})`}</span>
-                          </div>
-                        </td>
-                        <td className="p-3 text-gray-400 break-words max-w-md">{row.message}</td>
+                        <td className="p-3 font-mono text-blue-300">{row.policy}</td>
+                        <td className="p-3 text-gray-200">{row.type}</td>
+                        <td className="p-3 text-gray-100">{row.name}</td>
+                        <td className="p-3 text-gray-200 break-words max-w-md">{row.message}</td>
                       </tr>
                     ))}
-                  {kyvernoData.rows.length === 0 && (
-                    <tr><td colSpan="5" className="p-8 text-center text-gray-500">No data available</td></tr>
+                  {(!kyvernoNs || kyvernoData.rows.length === 0) && (
+                    <tr><td colSpan="6" className="p-8 text-center text-gray-500">
+                      {!kyvernoNs ? "Select a namespace to view report" : "No data available"}
+                    </td></tr>
                   )}
                 </tbody>
               </table>
@@ -436,7 +681,159 @@ export default function PolicyReports() {
           </div>
         )}
 
-        {/* SBOM */}
+        {/* CIS BENCHMARK */}
+        {!loading && !error && activeView === 'cis' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {['FAIL', 'WARN', 'INFO', 'PASS'].map(s => (
+                <StatusCard key={s} label={s} value={cisData.counts[s] || 0} />
+              ))}
+              <div className="p-4 rounded-lg border border-gray-700 bg-[#1e1e1e] flex flex-col items-center justify-center">
+                <span className="text-xs font-semibold opacity-70 mb-1">TOTAL</span>
+                <span className="text-2xl font-bold text-gray-200">
+                  {Object.values(cisData.counts).reduce((a, b) => a + b, 0)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-4 items-center bg-[#161b22] p-3 rounded-lg border border-[#30363d]">
+              <span className="text-xs text-gray-400 font-mono uppercase">Filter Status:</span>
+              {['FAIL', 'WARN', 'INFO', 'PASS'].map(status => (
+                <label key={status} className="flex items-center gap-2 cursor-pointer select-none">
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${cisStatusFilters[status]
+                    ? 'bg-blue-600 border-blue-600'
+                    : 'bg-transparent border-gray-600 hover:border-gray-500'
+                    }`}>
+                    {cisStatusFilters[status] && <CheckCircle className="w-3 h-3 text-white" />}
+                  </div>
+                  <input
+                    type="checkbox"
+                    className="hidden"
+                    checked={cisStatusFilters[status]}
+                    onChange={() => setCisStatusFilters(prev => ({ ...prev, [status]: !prev[status] }))}
+                  />
+                  <span className={`text-xs font-bold ${getStatusColor(status).split(' ')[0]}`}>{status}</span>
+                </label>
+              ))}
+            </div>
+
+            <div className="border border-[#30363d] rounded-lg overflow-hidden bg-[#0d1117]">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-[#161b22] text-gray-400 font-medium">
+                  <tr>
+                    <th className="p-3 border-b border-[#30363d] w-24 text-center text-gray-200">Status</th>
+                    <th className="p-3 border-b border-[#30363d] w-24 text-gray-200">Check ID</th>
+                    <th className="p-3 border-b border-[#30363d] w-64 text-gray-200">Section</th>
+                    <th className="p-3 border-b border-[#30363d] text-gray-200">Title</th>
+                    <th className="p-3 border-b border-[#30363d] w-[40%] text-gray-200">Resolution</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#30363d]">
+                  {cisData.list
+                    .filter(r => cisStatusFilters[r.status])
+                    .map((row, idx) => (
+                      <tr key={idx} className="hover:bg-[#161b22]/50 transition-colors">
+                        <td className="p-3 text-center">
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold border ${getStatusColor(row.status)}`}>
+                            {row.status}
+                          </span>
+                        </td>
+                        <td className="p-3 font-mono text-blue-300">{row.id}</td>
+                        <td className="p-3 text-gray-200 text-sm font-semibold">{row.section || '-'}</td>
+                        <td className="p-3 text-gray-200">{row.desc}</td>
+                        <td className="p-3 text-gray-200 text-xs font-mono break-all max-w-sm">{row.remediation}</td>
+                      </tr>
+                    ))}
+                  {cisData.list.filter(r => cisStatusFilters[r.status]).length === 0 && (
+                    <tr><td colSpan="5" className="p-8 text-center text-gray-500">No benchmarks found matching filters</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* CLUSTER REPORT */}
+        {!loading && !error && activeView === 'cluster' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+              {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN'].map(s => (
+                <StatusCard key={s} label={s} value={clusterData.counts[s] || 0} />
+              ))}
+              <div className="p-4 rounded-lg border border-gray-700 bg-[#1e1e1e] flex flex-col items-center justify-center">
+                <span className="text-xs font-semibold opacity-70 mb-1">TOTAL</span>
+                <span className="text-2xl font-bold text-gray-200">
+                  {Object.values(clusterData.counts).reduce((a, b) => a + b, 0)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-4 items-center bg-[#161b22] p-3 rounded-lg border border-[#30363d]">
+              <span className="text-xs text-gray-400 font-mono uppercase">Filter Severity:</span>
+              {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN'].map(sev => (
+                <label key={sev} className="flex items-center gap-2 cursor-pointer select-none">
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${clusterSeverityFilters[sev]
+                    ? 'bg-blue-600 border-blue-600'
+                    : 'bg-transparent border-gray-600 hover:border-gray-500'
+                    }`}>
+                    {clusterSeverityFilters[sev] && <CheckCircle className="w-3 h-3 text-white" />}
+                  </div>
+                  <input
+                    type="checkbox"
+                    className="hidden"
+                    checked={clusterSeverityFilters[sev]}
+                    onChange={() => setClusterSeverityFilters(prev => ({ ...prev, [sev]: !prev[sev] }))}
+                  />
+                  <span className={`text-xs font-bold ${sev === 'CRITICAL' ? 'text-red-500' :
+                    sev === 'HIGH' ? 'text-orange-400' :
+                      sev === 'MEDIUM' ? 'text-yellow-400' :
+                        sev === 'LOW' ? 'text-blue-400' : 'text-gray-400'
+                    }`}>{sev}</span>
+                </label>
+              ))}
+            </div>
+
+            <div className="border border-[#30363d] rounded-lg overflow-hidden bg-[#0d1117]">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-[#161b22] text-gray-200 font-medium">
+                  <tr>
+                    <th className="p-3 border-b border-[#30363d] w-24 text-gray-200">Severity</th>
+                    <th className="p-3 border-b border-[#30363d] text-gray-200">ID</th>
+                    <th className="p-3 border-b border-[#30363d] w-1/3 text-gray-200">Title</th>
+                    <th className="p-3 border-b border-[#30363d] w-1/3 text-gray-200">Message</th>
+                    <th className="p-3 border-b border-[#30363d] w-16 text-gray-200">Ref</th>
+                    <th className="p-3 border-b border-[#30363d] w-40 text-gray-200">Target</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#30363d]">
+                  {clusterData.list
+                    .filter(row => clusterSeverityFilters[row.severity])
+                    .map((row, idx) => (
+                      <tr key={idx} className="hover:bg-[#161b22]/50 transition-colors">
+                        <td className="p-3">
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold border ${getStatusColor(row.severity)}`}>
+                            {row.severity}
+                          </span>
+                        </td>
+                        <td className="p-3 font-mono text-blue-300">{row.id}</td>
+                        <td className="p-3 text-gray-100 pointer-events-none" title={row.title}>{row.title}</td>
+                        <td className="p-3 text-gray-200 max-w-xs break-words">{row.msg}</td>
+                        <td className="p-3 text-blue-300">
+                          {row.link ? (
+                            <a href={row.link} target="_blank" rel="noopener noreferrer" className="hover:underline">Link</a>
+                          ) : '-'}
+                        </td>
+                        <td className="p-3 text-gray-200">{row.target}</td>
+                      </tr>
+                    ))}
+                  {clusterData.list.filter(row => clusterSeverityFilters[row.severity]).length === 0 && (
+                    <tr><td colSpan="6" className="p-8 text-center text-gray-400">No issues found matching filters</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
         {!loading && !error && activeView === 'sbom' && (
           <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
@@ -478,7 +875,7 @@ export default function PolicyReports() {
 
             <div className="border border-[#30363d] rounded-lg overflow-hidden bg-[#0d1117]">
               <table className="w-full text-sm text-left">
-                <thead className="bg-[#161b22] text-gray-400 font-medium">
+                <thead className="bg-[#161b22] text-gray-200 font-medium">
                   <tr>
                     <th className="p-3 border-b border-[#30363d]">Severity</th>
                     <th className="p-3 border-b border-[#30363d]">Library</th>
@@ -498,15 +895,15 @@ export default function PolicyReports() {
                             {row.severity}
                           </span>
                         </td>
-                        <td className="p-3 font-medium text-gray-300">{row.library}</td>
-                        <td className="p-3 font-mono text-blue-400">
+                        <td className="p-3 font-medium text-gray-200">{row.library}</td>
+                        <td className="p-3 font-mono text-blue-300">
                           {row.ref ? (
                             <a href={row.ref} target="_blank" rel="noreferrer" className="hover:underline">{row.id}</a>
                           ) : row.id}
                         </td>
-                        <td className="p-3 text-gray-400">{row.installed}</td>
-                        <td className="p-3 text-gray-400">{row.fixed}</td>
-                        <td className="p-3 text-gray-500 max-w-xs truncate" title={row.title}>{row.title}</td>
+                        <td className="p-3 text-gray-200">{row.installed}</td>
+                        <td className="p-3 text-gray-200">{row.fixed}</td>
+                        <td className="p-3 text-gray-200 break-words" title={row.title}>{row.title}</td>
                       </tr>
                     ))}
                   {sbomData.list.filter(row => sbomSeverityFilters[row.severity]).length === 0 && (
@@ -638,12 +1035,12 @@ export default function PolicyReports() {
                             {row.severity}
                           </span>
                         </td>
-                        <td className="p-3 font-mono text-gray-300">{row.id}</td>
-                        <td className="p-3 font-medium text-gray-300">{row.pkg}</td>
-                        <td className="p-3 text-gray-400">{row.installed}</td>
-                        <td className="p-3 text-gray-400">{row.fixed}</td>
-                        <td className="p-3 text-gray-500 max-w-xs truncate" title={row.title}>{row.title}</td>
-                        <td className="p-3 text-gray-500 break-words max-w-xs">{row.target}</td>
+                        <td className="p-3 font-mono text-gray-200">{row.id}</td>
+                        <td className="p-3 font-medium text-gray-200">{row.pkg}</td>
+                        <td className="p-3 text-gray-200">{row.installed}</td>
+                        <td className="p-3 text-gray-200">{row.fixed}</td>
+                        <td className="p-3 text-gray-200 break-words" title={row.title}>{row.title}</td>
+                        <td className="p-3 text-gray-200 break-words max-w-xs">{row.target}</td>
                         <td className="p-3 font-mono text-blue-400">
                           {row.refs && row.refs[0] ? (
                             <a href={row.refs[0]} target="_blank" rel="noreferrer" className="hover:underline">link</a>
@@ -665,7 +1062,7 @@ export default function PolicyReports() {
           <div className="space-y-6">
             <div className="border border-[#30363d] rounded-lg overflow-hidden bg-[#0d1117]">
               <table className="w-full text-sm text-left">
-                <thead className="bg-[#161b22] text-gray-400 font-medium">
+                <thead className="bg-[#161b22] text-gray-200 font-medium">
                   <tr>
                     <th className="p-3 border-b border-[#30363d]">Namespace</th>
                     <th className="p-3 border-b border-[#30363d]">FQDN</th>
@@ -679,9 +1076,9 @@ export default function PolicyReports() {
                     .filter(row => row.accepted && row.accepted.length > 0)
                     .map((row, idx) => (
                       <tr key={idx} className="hover:bg-[#161b22]/50 transition-colors">
-                        <td className="p-3 text-gray-300">{row.namespace}</td>
-                        <td className="p-3 text-blue-400">{row.fqdn}</td>
-                        <td className="p-3 text-gray-400 font-mono">{row.port}</td>
+                        <td className="p-3 text-gray-200">{row.namespace}</td>
+                        <td className="p-3 text-blue-300">{row.fqdn}</td>
+                        <td className="p-3 text-gray-200 font-mono">{row.port}</td>
                         <td className="p-3">
                           <div className="flex flex-wrap gap-1">
                             {row.accepted.length > 0 ? row.accepted.map(c => (

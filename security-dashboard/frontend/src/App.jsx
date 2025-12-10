@@ -148,13 +148,6 @@ function App() {
                         <h1 className="text-2xl font-bold tracking-tight">SecurityOps Dashboard</h1>
                     </div>
                     <nav className="flex gap-4 items-center">
-                        <div className="flex items-center gap-2 px-4 py-2 bg-gray-900 rounded-md border border-gray-700 mr-4">
-                            <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                            </span>
-                            <span className="text-green-400 text-sm font-medium">System Online</span>
-                        </div>
                         <button
                             onClick={() => setActiveTab('dashboard')}
                             className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
@@ -187,12 +180,19 @@ function App() {
                             <Terminal className="w-4 h-4" />
                             Terminal
                         </button>
+                        <div className="flex items-center gap-2 px-4 py-2 bg-gray-900 rounded-md border border-gray-700 ml-2">
+                            <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                            </span>
+                            <span className="text-green-400 text-sm font-medium">System Online</span>
+                        </div>
                     </nav>
                 </div>
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 flex flex-col p-6 overflow-hidden">
+            < main className="flex-1 flex flex-col p-6 overflow-hidden" >
                 {activeTab === 'dashboard' ? (
                     <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
                         {/* Left Sidebar: Scan Controls & Status */}
@@ -215,9 +215,10 @@ function App() {
                     <div className="h-full">
                         <WebTerminal />
                     </div>
-                )}
-            </main>
-        </div>
+                )
+                }
+            </main >
+        </div >
     );
 }
 
