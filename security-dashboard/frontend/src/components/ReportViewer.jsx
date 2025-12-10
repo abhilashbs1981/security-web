@@ -54,7 +54,7 @@ export default function ReportViewer() {
         <div className="bg-gray-900 rounded-xl border border-gray-800 shadow-2xl overflow-hidden flex h-[calc(100vh-140px)]">
 
             {/* Sidebar List */}
-            <div className="w-80 border-r border-gray-800 bg-[#0f1115] flex flex-col">
+            <div className="w-80 border-r border-gray-800 bg-[#0d0f12] flex flex-col shadow-[4px_0_24px_-2px_rgba(0,0,0,0.3)] z-10">
                 <div className="p-5 border-b border-gray-800 bg-[#0f1115]">
                     <h3 className="text-white font-bold text-sm tracking-wider uppercase mb-4 flex items-center gap-2">
                         <Activity className="w-4 h-4 text-blue-500" />
@@ -78,8 +78,8 @@ export default function ReportViewer() {
                             key={report.id}
                             onClick={() => loadReportDetails(report.id)}
                             className={`w-full group relative text-left p-3 rounded-xl border transition-all duration-300 ease-out overflow-hidden hover:shadow-lg ${selectedReport?.id === report.id
-                                    ? 'bg-gradient-to-br from-blue-900/20 to-indigo-900/20 border-blue-500/50 shadow-blue-900/10'
-                                    : 'bg-[#16181d] border-gray-800 hover:border-gray-700 hover:bg-[#1c1f26]'
+                                ? 'bg-gradient-to-br from-blue-900/20 to-indigo-900/20 border-blue-500/50 shadow-blue-900/10'
+                                : 'bg-[#16181d] border-gray-800 hover:border-gray-700 hover:bg-[#1c1f26]'
                                 }`}
                         >
                             {/* Card Content */}

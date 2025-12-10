@@ -3,7 +3,8 @@ import ScanControl from './components/ScanControl';
 import LogViewer from './components/LogViewer';
 import ReportViewer from './components/ReportViewer';
 import WebTerminal from './components/WebTerminal';
-import { ShieldAlert, LayoutDashboard, FileText, Terminal } from 'lucide-react';
+import PolicyReports from './components/PolicyReports';
+import { ShieldAlert, LayoutDashboard, FileText, Terminal, FileCheck } from 'lucide-react';
 
 function App() {
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -171,6 +172,14 @@ function App() {
                             Event Logs
                         </button>
                         <button
+                            onClick={() => setActiveTab('policy')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'policy' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                                }`}
+                        >
+                            <FileCheck className="w-4 h-4" />
+                            Scan Reports
+                        </button>
+                        <button
                             onClick={() => setActiveTab('terminal')}
                             className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'terminal' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
                                 }`}
@@ -200,6 +209,8 @@ function App() {
                     </div>
                 ) : activeTab === 'reports' ? (
                     <ReportViewer />
+                ) : activeTab === 'policy' ? (
+                    <PolicyReports />
                 ) : (
                     <div className="h-full">
                         <WebTerminal />
