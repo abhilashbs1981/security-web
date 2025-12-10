@@ -40,7 +40,7 @@ export default function ScanControl({ onStartScan, isScanning }) {
             <button
                 onClick={() => onStartScan('all')}
                 disabled={isScanning}
-                className={`w-full py-2 px-3 text-sm font-medium rounded-lg flex items-center justify-center gap-2 transition-all ${isScanning
+                className={`w-3/4 py-2 px-3 text-sm font-medium rounded-lg flex items-center justify-center gap-2 transition-all ${isScanning
                     ? 'bg-gray-600 cursor-not-allowed'
                     : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-lg shadow-blue-900/20'
                     }`}

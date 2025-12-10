@@ -22,6 +22,11 @@ async def terminal_websocket(websocket: WebSocket):
             if not command_line.strip():
                 continue
 
+            # Security: Only allow kubectl commands
+            if not command_line.strip().startswith("kubectl"):
+                await websocket.send_text("Error: Only kubectl commands are allowed\n")
+                continue
+
             try:
                 # Execute command
                 process = await asyncio.create_subprocess_shell(
